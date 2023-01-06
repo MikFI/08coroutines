@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.logging.HttpLoggingInterceptor
 import ru.netology.coroutines.dto.Author
 import ru.netology.coroutines.dto.Comment
 import ru.netology.coroutines.dto.Post
@@ -58,12 +59,14 @@ fun main() {
 */
 
 /*
+//в этом варианте мы грузим список постов, после чего по-очереди подгружаем комментарии
+//к каждому из постов - ни о каком параллельном исполнении речи не идёт
 private val gson = Gson()
 private val BASE_URL = "http://127.0.0.1:9999"
 private val client = OkHttpClient.Builder()
-    .addInterceptor(HttpLoggingInterceptor(::println).apply {
-        level = HttpLoggingInterceptor.Level.BODY
-    })
+//    .addInterceptor(HttpLoggingInterceptor(::println).apply {
+//        level = HttpLoggingInterceptor.Level.BODY
+//    })
     .connectTimeout(30, TimeUnit.SECONDS)
     .build()
 
@@ -71,10 +74,15 @@ fun main() {
     with(CoroutineScope(EmptyCoroutineContext)) {
         launch {
             try {
-                val posts = getPosts(client)
+                var curTime = System.currentTimeMillis()
+                val tmp1 = getPosts(client)
+                println("get posts took ${System.currentTimeMillis() - curTime} ms")
+                curTime = System.currentTimeMillis()
+                val posts = tmp1
                     .map { post ->
                         PostWithComments(post, getComments(client, post.id))
                     }
+                println("get comments took ${System.currentTimeMillis() - curTime} ms")
                 println(posts)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -122,6 +130,11 @@ suspend fun getComments(client: OkHttpClient, id: Long): List<Comment> =
     makeRequest("$BASE_URL/api/slow/posts/$id/comments", client, object : TypeToken<List<Comment>>() {})
 */
 
+
+//в этом варианте мы грузим список постов, затем ставим в параллель загрузку
+//комментариев к каждому из постов
+//и в конце формируем список авторов постов + комментариев, после чего
+//загружаем их так же параллельно
 private val gson = Gson()
 private val BASE_URL = "http://127.0.0.1:9999"
 private val client = OkHttpClient.Builder()
